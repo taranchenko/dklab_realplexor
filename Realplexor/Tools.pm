@@ -10,6 +10,9 @@ use POSIX ":sys_wait_h";
 # Counter to make the time unique.
 my $time_counter = 0;
 
+# Maximum opened files limit.
+my $max_fd;
+
 # Return HiRes time. It is guaranteed that two sequencial calls
 # of this function always return different time, second > first.
 #
@@ -30,7 +33,8 @@ sub time_hi_res {
 # Rerun the script unlimited.
 sub rerun_unlimited {
 	if (($ARGV[0]||'') ne "-") {
-		my $cmd = "/bin/sh -c 'ulimit -n 1048576; exec \"$^X\" \"$0\" - " . join(" ", map { '"' . $_ . '"' } @ARGV) . "'";
+		$max_fd = $^O eq 'darwin' ? 12288 : 1048576 unless ($max_fd);
+		my $cmd = "/bin/sh -c 'ulimit -n $max_fd; exec \"$^X\" \"$0\" - " . join(" ", map { '"' . $_ . '"' } @ARGV) . "'";
 		exec($cmd) or die "Cannot exec $cmd: $!\n";
 	} else {
 		shift @ARGV;
@@ -40,9 +44,9 @@ sub rerun_unlimited {
 # Returns amount of used memory by pid (in megabytes).
 sub get_memory_usage {
 	my ($pid) = @_;
-	my $mem = `ps -p $pid -o rss --no-headers`;
+	my $mem = `ps -p $pid -o rss`;
 	return 0 if !$mem;
-	$mem =~ s/\s+//sg;
+	$mem =~ s/[^\d]//sg;
 	return $mem / 1024;
 }
 
@@ -78,5 +82,6 @@ sub graceful_kill {
 	}
 	$pid = undef;
 }
+
 
 return 1;
